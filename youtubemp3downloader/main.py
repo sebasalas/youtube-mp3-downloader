@@ -118,8 +118,9 @@ class Application(Gtk.Application):
                 )
                 dialog.run()
                 dialog.destroy()
-            except Exception:
-                pass
+            except Exception as dialog_error:
+                # If we can't even show the error dialog, just log it
+                logger.error(f"Failed to show error dialog: {dialog_error}")
             raise
 
     def on_toggle_notifications(self, action, parameter):

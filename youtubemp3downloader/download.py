@@ -145,8 +145,8 @@ def download_thread(window, url, url_type, download_path, use_auth):
                         total_videos = int(import_match.group(2))
                         if not current_video_title:
                             current_video_title = "Video #{}".format(current_video_index)
-                except Exception:
-                    pass
+                except (ValueError, AttributeError) as e:
+                    logger.debug(f"Could not parse video index from line: {e}")
 
             GLib.idle_add(window.log_message, line)
 
@@ -159,8 +159,8 @@ def download_thread(window, url, url_type, download_path, use_auth):
 
                     filename = os.path.basename(window.current_downloading_file)
                     current_video_title = os.path.splitext(filename)[0]
-                except Exception:
-                    pass
+                except (IndexError, AttributeError) as e:
+                    logger.debug(f"Could not parse destination from line: {e}")
 
             if "Deleting original file" in line:
                 successful_downloads += 1
@@ -182,7 +182,8 @@ def download_thread(window, url, url_type, download_path, use_auth):
                             video_identifier = playlist_info.get(video_id, "ID: {}".format(video_id))
                         else:
                             video_identifier = "Unknown"
-                    except Exception:
+                    except (AttributeError, IndexError) as e:
+                        logger.debug(f"Could not extract video ID from error line: {e}")
                         video_identifier = "Unknown"
 
                 error_info = {
@@ -231,8 +232,8 @@ def download_thread(window, url, url_type, download_path, use_auth):
                                 progress_text = "{:.1f}%".format(percent)
                             GLib.idle_add(window.progress_bar.set_text, progress_text)
                             break
-                except Exception:
-                    pass
+                except (ValueError, IndexError) as e:
+                    logger.debug(f"Could not parse progress percentage: {e}")
 
         process.wait()
         logger.info(f"Download process completed with return code: {process.returncode}")
