@@ -7,12 +7,16 @@ import subprocess
 import threading
 import os
 import re
+import shutil
 from pathlib import Path
 
 from . import config
 from . import utils
 from . import download
+from .exceptions import ValidationError
+from .logger import get_logger
 
+logger = get_logger(__name__)
 class YouTubeMp3Downloader(Gtk.Window):
     def __init__(self):
         super().__init__(title="YouTube MP3 Downloader")
@@ -229,42 +233,85 @@ class YouTubeMp3Downloader(Gtk.Window):
 
     def on_paste_url_clicked(self, button):
         """Paste URL from clipboard"""
-        clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
-        text = clipboard.wait_for_text()
-        if text:
-            self.url_entry.set_text(text)
-            self.url_entry.grab_focus()
+        try:
+            clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+            text = clipboard.wait_for_text()
+            if text:
+                self.url_entry.set_text(text)
+                self.url_entry.grab_focus()
+                logger.debug("URL pasted from clipboard")
+            else:
+                logger.debug("Clipboard is empty")
+        except Exception as e:
+            logger.error(f"Failed to paste from clipboard: {e}")
+            self.show_error_dialog(f"Could not paste from clipboard:\n{str(e)}")
 
     def on_select_folder(self, button):
         """Open dialog to select folder"""
-        dialog = Gtk.FileChooserDialog(
-            title="Select destination folder",
-            parent=self,
-            action=Gtk.FileChooserAction.SELECT_FOLDER
-        )
-        dialog.add_buttons(
-            Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-            Gtk.STOCK_OPEN, Gtk.ResponseType.OK
-        )
-        dialog.set_current_folder(self.download_path)
+        try:
+            dialog = Gtk.FileChooserDialog(
+                title="Select destination folder",
+                parent=self,
+                action=Gtk.FileChooserAction.SELECT_FOLDER
+            )
+            dialog.add_buttons(
+                Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+                Gtk.STOCK_OPEN, Gtk.ResponseType.OK
+            )
+            
+            # Try to set current folder, but don't fail if it doesn't exist
+            try:
+                if os.path.isdir(self.download_path):
+                    dialog.set_current_folder(self.download_path)
+            except (OSError, TypeError) as e:
+                logger.warning(f"Could not set current folder in dialog: {e}")
 
-        response = dialog.run()
-        if response == Gtk.ResponseType.OK:
-            self.download_path = dialog.get_filename()
-            self.folder_entry.set_text(self.download_path)
-            # Save download path in configuration
-            self.config['download_path'] = self.download_path
-            config.save_config(self.config)
+            response = dialog.run()
+            if response == Gtk.ResponseType.OK:
+                self.download_path = dialog.get_filename()
+                self.folder_entry.set_text(self.download_path)
+                # Save download path in configuration
+                self.config['download_path'] = self.download_path
+                try:
+                    config.save_config(self.config)
+                    logger.info(f"Download path updated: {self.download_path}")
+                except Exception as e:
+                    logger.error(f"Failed to save download path: {e}")
 
-        dialog.destroy()
+            dialog.destroy()
+        except Exception as e:
+            logger.error(f"Error in folder selection dialog: {e}")
+            self.show_error_dialog(f"Could not open folder selection dialog:\n{str(e)}")
 
     def on_open_folder(self, button):
         """Open destination folder in the file explorer"""
         try:
-            # Use xdg-open to open with the default file explorer
-            subprocess.Popen(["xdg-open", self.download_path])
+            # Validate that the folder exists
+            if not os.path.isdir(self.download_path):
+                logger.warning(f"Download folder does not exist: {self.download_path}")
+                self.show_error_dialog(f"Folder does not exist:\n{self.download_path}")
+                return
+            
+            # Check if xdg-open is available
+            if shutil.which("xdg-open"):
+                subprocess.Popen(
+                    ["xdg-open", self.download_path],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                logger.debug(f"Opened folder: {self.download_path}")
+            else:
+                logger.error("xdg-open not found")
+                self.show_error_dialog(
+                    "Cannot open folder: xdg-open is not installed.\n"
+                    f"Folder path: {self.download_path}"
+                )
+        except subprocess.SubprocessError as e:
+            logger.error(f"Failed to open folder with xdg-open: {e}")
+            self.show_error_dialog(f"Could not open folder:\n{str(e)}")
         except Exception as e:
-            self.show_error_dialog("Could not open folder: {}".format(str(e)))
+            logger.error(f"Unexpected error opening folder: {e}")
+            self.show_error_dialog(f"Could not open folder:\n{str(e)}")
 
     def on_url_changed(self, entry):
         """Validate URL in real time and update visual indicator"""
@@ -276,14 +323,21 @@ class YouTubeMp3Downloader(Gtk.Window):
             self.url_status_label.set_tooltip_text("")
             return
 
-        url_type, _ = utils.classify_youtube_url(url)
+        try:
+            url_type, _ = utils.classify_youtube_url(url)
 
-        if url_type:
-            self.url_status_label.set_markup("<span foreground='green' size='large'>✓</span>")
-            self.url_status_label.set_tooltip_text("Valid YouTube URL ({})".format(url_type))
-        else:
+            if url_type:
+                self.url_status_label.set_markup("<span foreground='green' size='large'>✓</span>")
+                self.url_status_label.set_tooltip_text("Valid YouTube URL ({})".format(url_type))
+            else:
+                self.url_status_label.set_markup("<span foreground='red' size='large'>✗</span>")
+                self.url_status_label.set_tooltip_text("Invalid YouTube URL")
+        except ValidationError as e:
+            logger.error(f"Validation error in URL check: {e}")
             self.url_status_label.set_markup("<span foreground='red' size='large'>✗</span>")
-            self.url_status_label.set_tooltip_text("Invalid YouTube URL")
+            self.url_status_label.set_tooltip_text("Invalid input")
+        except Exception as e:
+            logger.error(f"Unexpected error validating URL: {e}")
 
     def on_clear_url_clicked(self, button):
         """Clear the URL field"""
@@ -292,25 +346,33 @@ class YouTubeMp3Downloader(Gtk.Window):
 
     def on_auth_toggled(self, checkbox):
         """Update authentication status when the checkbox is changed"""
-        self.use_youtube_auth = checkbox.get_active()
-        # Save authentication status in configuration
-        self.config['use_youtube_auth'] = self.use_youtube_auth
-        config.save_config(self.config)
+        try:
+            self.use_youtube_auth = checkbox.get_active()
+            # Save authentication status in configuration
+            self.config['use_youtube_auth'] = self.use_youtube_auth
+            config.save_config(self.config)
+            logger.info(f"YouTube authentication {'enabled' if self.use_youtube_auth else 'disabled'}")
+        except Exception as e:
+            logger.error(f"Failed to save authentication setting: {e}")
 
     def on_delete_event(self, widget, event):
         """Save window configuration before closing"""
-        # Get current window size
-        width, height = self.get_size()
-        self.config['window_width'] = width
-        self.config['window_height'] = height
+        try:
+            # Get current window size
+            width, height = self.get_size()
+            self.config['window_width'] = width
+            self.config['window_height'] = height
 
-        # Get current window position
-        x, y = self.get_position()
-        self.config['window_x'] = x
-        self.config['window_y'] = y
+            # Get current window position
+            x, y = self.get_position()
+            self.config['window_x'] = x
+            self.config['window_y'] = y
 
-        # Save configuration
-        config.save_config(self.config)
+            # Save configuration
+            config.save_config(self.config)
+            logger.info("Window configuration saved")
+        except Exception as e:
+            logger.error(f"Failed to save window configuration: {e}")
 
         # Return False to allow the window to close normally
         return False
@@ -318,10 +380,11 @@ class YouTubeMp3Downloader(Gtk.Window):
     def send_notification(self, title, message, icon="dialog-information"):
         """Send system notification if enabled"""
         if not self.notifications_enabled:
+            logger.debug("Notifications disabled, skipping")
             return
 
+        # Try Gio.Notification first (native GTK)
         try:
-            # Try to use Gio.Notification (native GTK)
             notification = Gio.Notification.new(title)
             notification.set_body(message)
 
@@ -337,42 +400,63 @@ class YouTubeMp3Downloader(Gtk.Window):
             app = self.get_application()
             if app:
                 app.send_notification(None, notification)
+                logger.debug(f"Notification sent via Gio: {title}")
                 return
         except Exception as e:
-            print(f"Failed to send Gio notification: {e}")
+            logger.debug(f"Gio notification failed: {e}")
 
-        # Fallback: use notify-send
-        try:
-            subprocess.run([
-                "notify-send",
-                "-a", "YouTube MP3 Downloader",
-                "-i", icon,
-                title,
-                message
-            ], check=False, timeout=5)
-        except Exception as e:
-            print(f"Failed to send notify-send notification: {e}")
+        # Fallback: use notify-send if available
+        if shutil.which("notify-send"):
+            try:
+                subprocess.run([
+                    "notify-send",
+                    "-a", "YouTube MP3 Downloader",
+                    "-i", icon,
+                    title,
+                    message
+                ], check=False, timeout=5, 
+                stdout=subprocess.DEVNULL, 
+                stderr=subprocess.DEVNULL)
+                logger.debug(f"Notification sent via notify-send: {title}")
+                return
+            except subprocess.TimeoutExpired:
+                logger.warning("notify-send timed out")
+            except subprocess.SubprocessError as e:
+                logger.warning(f"notify-send failed: {e}")
+            except Exception as e:
+                logger.warning(f"Unexpected error with notify-send: {e}")
+        else:
+            logger.debug("notify-send not available")
+        
+        # Silent fail - notifications are optional
+        logger.debug("All notification methods failed, continuing without notification")
 
     def on_copy_log_clicked(self, button):
         """Copy all log content to the clipboard"""
-        # Get all text from the buffer
-        start_iter = self.log_buffer.get_start_iter()
-        end_iter = self.log_buffer.get_end_iter()
-        log_text = self.log_buffer.get_text(start_iter, end_iter, True)
+        try:
+            # Get all text from the buffer
+            start_iter = self.log_buffer.get_start_iter()
+            end_iter = self.log_buffer.get_end_iter()
+            log_text = self.log_buffer.get_text(start_iter, end_iter, True)
 
-        # Copy to clipboard
-        clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
-        clipboard.set_text(log_text, -1)
-        clipboard.store()
+            # Copy to clipboard
+            clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+            clipboard.set_text(log_text, -1)
+            clipboard.store()
 
-        # Show confirmation in the log
-        self.log_message("")
-        self.log_message("✓ Log copied to clipboard")
+            # Show confirmation in the log
+            self.log_message("")
+            self.log_message("✓ Log copied to clipboard")
+            logger.debug("Log copied to clipboard")
+        except Exception as e:
+            logger.error(f"Failed to copy log to clipboard: {e}")
+            self.show_error_dialog(f"Could not copy log:\n{str(e)}")
 
     def on_stop_clicked(self, button):
         """Stop the current download process"""
         self.log_message("")
         self.log_message("⏹ Stopping download...")
+        logger.info("User requested download stop")
 
         # Mark as stopped and request cancellation
         self.download_stopped = True
@@ -382,14 +466,18 @@ class YouTubeMp3Downloader(Gtk.Window):
         if self.current_process:
             try:
                 self.current_process.terminate()  # Try to terminate gracefully
+                logger.debug("Sent terminate signal to download process")
                 # Give time to terminate gracefully
                 try:
                     self.current_process.wait(timeout=2)
+                    logger.debug("Download process terminated gracefully")
                 except subprocess.TimeoutExpired:
                     # If it does not terminate in 2 seconds, force termination
                     self.log_message("⚠ Forcing process termination...")
+                    logger.warning("Process did not terminate, forcing kill")
                     self.current_process.kill()
                     self.current_process.wait()
+                    logger.info("Download process killed")
 
                 # Clean up partial files
                 download.cleanup_partial_files(self)
@@ -397,7 +485,11 @@ class YouTubeMp3Downloader(Gtk.Window):
                 self.progress_bar.set_text("Stopped")
                 self.progress_bar.set_fraction(0.0)
                 self.log_message("✓ Download stopped by user")
+            except subprocess.SubprocessError as e:
+                logger.error(f"Error stopping download process: {e}")
+                self.log_message("✗ Error stopping: {}".format(str(e)))
             except Exception as e:
+                logger.error(f"Unexpected error stopping download: {e}")
                 self.log_message("✗ Error stopping: {}".format(str(e)))
         else:
             # There is no process yet, but cancellation is requested
@@ -405,6 +497,7 @@ class YouTubeMp3Downloader(Gtk.Window):
             self.log_message("✓ Cancellation requested")
             self.progress_bar.set_text("Cancelled")
             self.progress_bar.set_fraction(0.0)
+            logger.info("Download cancellation requested (no process running)")
 
     def log_message(self, message):
         """Add message to the log area"""
@@ -417,12 +510,24 @@ class YouTubeMp3Downloader(Gtk.Window):
     def on_download_clicked(self, button):
         """Start download"""
         url = self.url_entry.get_text().strip()
+        
+        logger.info("Download button clicked")
 
         if not url:
+            logger.warning("Empty URL provided")
             self.show_error_dialog("Please enter a YouTube URL")
             return
 
-        url_type, match = utils.classify_youtube_url(url)
+        try:
+            url_type, match = utils.classify_youtube_url(url)
+        except ValidationError as e:
+            logger.error(f"URL validation error: {e}")
+            self.show_error_dialog(f"Invalid input:\n{str(e)}")
+            return
+        except Exception as e:
+            logger.error(f"Unexpected error validating URL: {e}")
+            self.show_error_dialog(f"Error validating URL:\n{str(e)}")
+            return
 
         if not url_type:
             # Specific error messages depending on the problem
@@ -430,22 +535,34 @@ class YouTubeMp3Downloader(Gtk.Window):
                 if "/watch?v=" in url and len(re.findall(r'v=([\w-]+)', url)) > 0:
                     video_id = re.findall(r'v=([\w-]+)', url)[0]
                     if len(video_id) != 11:
+                        logger.warning(f"Invalid video ID length: {video_id} ({len(video_id)} chars)")
                         self.show_error_dialog("Invalid video ID length.\nYouTube video IDs must be exactly 11 characters.\nFound: {} ({} characters)".format(video_id, len(video_id)))
                         return
+                logger.warning(f"Invalid YouTube URL format: {url}")
                 self.show_error_dialog("Invalid YouTube URL format.\n\nValid formats:\n• youtube.com/watch?v=VIDEO_ID (11 chars)\n• youtu.be/VIDEO_ID\n• youtube.com/playlist?list=PLAYLIST_ID\n• youtube.com/shorts/VIDEO_ID")
             else:
+                logger.warning(f"Not a YouTube URL: {url}")
                 self.show_error_dialog("This doesn't appear to be a YouTube URL.\nPlease enter a valid YouTube video or playlist URL.")
             return
 
+        logger.info(f"Valid {url_type} URL: {url}")
+
         # Validate and normalize the destination folder
         try:
-            download_dir = Path(self.download_path).expanduser()
+            download_dir = Path(self.download_path).expanduser().resolve()
             download_dir.mkdir(parents=True, exist_ok=True)
-        except Exception as e:
+            logger.debug(f"Download directory prepared: {download_dir}")
+        except (OSError, PermissionError) as e:
+            logger.error(f"Failed to prepare destination folder: {e}")
             self.show_error_dialog("Could not prepare destination folder:\n{}".format(str(e)))
+            return
+        except Exception as e:
+            logger.error(f"Unexpected error with destination folder: {e}")
+            self.show_error_dialog("Error with destination folder:\n{}".format(str(e)))
             return
 
         if not os.access(str(download_dir), os.W_OK | os.X_OK):
+            logger.error(f"Destination folder not writable: {download_dir}")
             self.show_error_dialog("Destination folder is not writable:\n{}".format(str(download_dir)))
             return
 
@@ -478,14 +595,26 @@ class YouTubeMp3Downloader(Gtk.Window):
         self.log_message("Starting download of: {}".format(url))
         self.log_message("Destination: {}".format(self.download_path))
         self.log_message("-" * 60)
+        logger.info(f"Starting download thread for {url_type}")
 
         # Run download in a separate thread
-        thread = threading.Thread(
-            target=download.download_thread,
-            args=(self, url, url_type, self.download_path, use_auth)
-        )
-        thread.daemon = True
-        thread.start()
+        try:
+            thread = threading.Thread(
+                target=download.download_thread,
+                args=(self, url, url_type, self.download_path, use_auth)
+            )
+            thread.daemon = True
+            thread.start()
+            logger.debug("Download thread started")
+        except Exception as e:
+            logger.error(f"Failed to start download thread: {e}")
+            self.show_error_dialog(f"Could not start download:\n{str(e)}")
+            # Restore UI
+            self._set_ui_sensitive(True)
+            self.download_button.set_sensitive(True)
+            self.download_button.get_style_context().add_class("suggested-action")
+            self.stop_button.set_sensitive(False)
+            self.stop_button.get_style_context().remove_class("destructive-action")
 
     def show_error_dialog(self, message):
         """Show error dialog"""
