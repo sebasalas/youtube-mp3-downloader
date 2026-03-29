@@ -6,7 +6,7 @@ import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GLib, Gio
 
-from .app_window import YouTubeMp3Downloader
+from .app_window import YouTubeMp3Downloader, PreferencesDialog
 from . import config
 from .exceptions import DependencyError
 from .logger import get_logger
@@ -87,7 +87,7 @@ class Application(Gtk.Application):
                 self.window.set_application(self)
                 self.add_window(self.window)
 
-                # Action for toggling notifications
+                # Action for toggling notifications (state tracked for preferences dialog)
                 try:
                     toggle_notifications_action = Gio.SimpleAction.new_stateful(
                         "toggle-notifications",
@@ -99,6 +99,15 @@ class Application(Gtk.Application):
                     logger.debug("Notification toggle action registered")
                 except Exception as e:
                     logger.error(f"Failed to register notification action: {e}")
+
+                # Action for showing preferences dialog
+                try:
+                    prefs_action = Gio.SimpleAction.new("show-preferences", None)
+                    prefs_action.connect("activate", self.on_show_preferences)
+                    self.add_action(prefs_action)
+                    logger.debug("Preferences action registered")
+                except Exception as e:
+                    logger.error(f"Failed to register preferences action: {e}")
 
             self.window.show_all()
             logger.info("Application window shown")
@@ -122,6 +131,13 @@ class Application(Gtk.Application):
                 # If we can't even show the error dialog, just log it
                 logger.error(f"Failed to show error dialog: {dialog_error}")
             raise
+
+    def on_show_preferences(self, action, parameter):
+        """Show the preferences dialog"""
+        try:
+            PreferencesDialog(self.window)
+        except Exception as e:
+            logger.error(f"Failed to show preferences dialog: {e}")
 
     def on_toggle_notifications(self, action, parameter):
         """Handle notification toggle"""

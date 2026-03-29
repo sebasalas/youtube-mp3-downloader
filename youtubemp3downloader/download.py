@@ -11,7 +11,7 @@ from .logger import get_logger
 
 logger = get_logger(__name__)
 
-def download_thread(window, url, url_type, download_path, use_auth, auth_browser="firefox"):
+def download_thread(window, url, url_type, download_path, use_auth, auth_browser="firefox", playlist_items=None):
     """Run yt-dlp in a separate thread"""
     logger.info(f"Download thread started for {url_type}: {url}")
     
@@ -26,7 +26,7 @@ def download_thread(window, url, url_type, download_path, use_auth, auth_browser
             raise ValidationError(f"Download path is not writable: {download_path}")
         
         playlist_info = {}
-        should_fetch_playlist_info = (url_type == "Playlist") or use_auth
+        should_fetch_playlist_info = ((url_type == "Playlist") or use_auth) and not playlist_items
         if should_fetch_playlist_info:
             try:
                 GLib.idle_add(window.log_message, "Getting playlist information...")
@@ -94,6 +94,10 @@ def download_thread(window, url, url_type, download_path, use_auth, auth_browser
             "--socket-timeout", "30",
             "-o", output_template,
         ]
+
+        if playlist_items:
+            cmd.extend(["--playlist-items", playlist_items])
+            logger.info(f"Downloading selected playlist items: {playlist_items}")
 
         if use_auth:
             cmd.extend(["--cookies-from-browser", auth_browser])

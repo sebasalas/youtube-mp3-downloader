@@ -17,6 +17,186 @@ from .exceptions import ValidationError
 from .logger import get_logger
 
 logger = get_logger(__name__)
+
+
+class PreferencesDialog(Gtk.Dialog):
+    """Preferences dialog for application settings"""
+    def __init__(self, parent):
+        super().__init__(
+            title="Preferences",
+            transient_for=parent,
+            modal=True,
+            destroy_with_parent=True
+        )
+        self.set_default_size(400, -1)
+        self.set_border_width(10)
+        self.parent_window = parent
+
+        content = self.get_content_area()
+        content.set_spacing(15)
+
+        # --- Authentication section ---
+        auth_frame = Gtk.Frame(label=" Authentication ")
+        auth_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        auth_box.set_border_width(10)
+
+        self.auth_checkbox = Gtk.CheckButton(label="Use YouTube authentication (for private playlists)")
+        self.auth_checkbox.set_active(parent.use_youtube_auth)
+        self.auth_checkbox.set_tooltip_text("Uses browser cookies to access private playlists.")
+        self.auth_checkbox.connect("toggled", self._on_auth_toggled)
+        auth_box.pack_start(self.auth_checkbox, False, False, 0)
+
+        browser_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        browser_label = Gtk.Label(label="Browser for cookies:")
+        browser_label.set_xalign(0)
+        browser_box.pack_start(browser_label, False, False, 0)
+        self.browser_combo = Gtk.ComboBoxText()
+        self.browser_combo.append("firefox", "Firefox")
+        self.browser_combo.append("chrome", "Chrome")
+        self.browser_combo.append("brave", "Brave")
+        self.browser_combo.set_active_id(parent.config.get('auth_browser', 'firefox'))
+        self.browser_combo.set_sensitive(parent.use_youtube_auth)
+        self.browser_combo.connect("changed", self._on_browser_changed)
+        browser_box.pack_start(self.browser_combo, False, False, 0)
+        auth_box.pack_start(browser_box, False, False, 0)
+
+        auth_frame.add(auth_box)
+        content.pack_start(auth_frame, False, False, 0)
+
+        # --- Notifications section ---
+        notif_frame = Gtk.Frame(label=" Notifications ")
+        notif_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        notif_box.set_border_width(10)
+
+        self.notif_checkbox = Gtk.CheckButton(label="Enable desktop notifications")
+        self.notif_checkbox.set_active(parent.notifications_enabled)
+        self.notif_checkbox.connect("toggled", self._on_notif_toggled)
+        notif_box.pack_start(self.notif_checkbox, False, False, 0)
+
+        notif_frame.add(notif_box)
+        content.pack_start(notif_frame, False, False, 0)
+
+        # Close button
+        self.add_button("Close", Gtk.ResponseType.CLOSE)
+        self.connect("response", lambda d, r: d.destroy())
+        self.show_all()
+
+    def _on_auth_toggled(self, checkbox):
+        try:
+            self.parent_window.use_youtube_auth = checkbox.get_active()
+            self.browser_combo.set_sensitive(checkbox.get_active())
+            self.parent_window.config['use_youtube_auth'] = checkbox.get_active()
+            config.save_config(self.parent_window.config)
+            logger.info(f"YouTube authentication {'enabled' if checkbox.get_active() else 'disabled'}")
+        except Exception as e:
+            logger.error(f"Failed to save authentication setting: {e}")
+
+    def _on_browser_changed(self, combo):
+        try:
+            browser = combo.get_active_id()
+            self.parent_window.config['auth_browser'] = browser
+            config.save_config(self.parent_window.config)
+            logger.info(f"Authentication browser changed to: {browser}")
+        except Exception as e:
+            logger.error(f"Failed to save browser setting: {e}")
+
+    def _on_notif_toggled(self, checkbox):
+        try:
+            self.parent_window.notifications_enabled = checkbox.get_active()
+            self.parent_window.config['notifications_enabled'] = checkbox.get_active()
+            config.save_config(self.parent_window.config)
+            # Update the app action state
+            app = self.parent_window.get_application()
+            if app:
+                action = app.lookup_action("toggle-notifications")
+                if action:
+                    action.set_state(GLib.Variant.new_boolean(checkbox.get_active()))
+            logger.info(f"Notifications {'enabled' if checkbox.get_active() else 'disabled'}")
+        except Exception as e:
+            logger.error(f"Failed to save notification setting: {e}")
+
+
+class PlaylistPreviewDialog(Gtk.Dialog):
+    """Dialog to preview and select videos from a playlist before downloading"""
+    def __init__(self, parent, playlist_info):
+        super().__init__(
+            title="Playlist Preview",
+            transient_for=parent,
+            modal=True,
+            destroy_with_parent=True
+        )
+        self.set_default_size(500, 400)
+        self.set_border_width(10)
+        self.selected_indices = None
+
+        content = self.get_content_area()
+        content.set_spacing(10)
+
+        # Header
+        header = Gtk.Label()
+        header.set_markup("<b>{} videos found in playlist</b>".format(len(playlist_info)))
+        header.set_xalign(0)
+        content.pack_start(header, False, False, 0)
+
+        # Select all / Deselect all buttons
+        select_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
+        select_all_btn = Gtk.Button(label="Select All")
+        select_all_btn.connect("clicked", self._on_select_all)
+        deselect_all_btn = Gtk.Button(label="Deselect All")
+        deselect_all_btn.connect("clicked", self._on_deselect_all)
+        select_box.pack_start(select_all_btn, False, False, 0)
+        select_box.pack_start(deselect_all_btn, False, False, 0)
+        content.pack_start(select_box, False, False, 0)
+
+        # Scrollable list of checkboxes
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_vexpand(True)
+        listbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+
+        self.checkboxes = []
+        for video_id, title in playlist_info.items():
+            cb = Gtk.CheckButton(label=title)
+            cb.set_active(True)
+            cb.video_id = video_id
+            self.checkboxes.append(cb)
+            listbox.pack_start(cb, False, False, 0)
+
+        scrolled.add(listbox)
+        content.pack_start(scrolled, True, True, 0)
+
+        # Selection count label
+        self.count_label = Gtk.Label()
+        self._update_count()
+        content.pack_start(self.count_label, False, False, 0)
+
+        # Connect toggles to update count
+        for cb in self.checkboxes:
+            cb.connect("toggled", lambda w: self._update_count())
+
+        # Buttons
+        self.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        download_btn = self.add_button("Download Selected", Gtk.ResponseType.OK)
+        download_btn.get_style_context().add_class("suggested-action")
+
+        self.show_all()
+
+    def _update_count(self):
+        selected = sum(1 for cb in self.checkboxes if cb.get_active())
+        self.count_label.set_text("{} of {} selected".format(selected, len(self.checkboxes)))
+
+    def _on_select_all(self, button):
+        for cb in self.checkboxes:
+            cb.set_active(True)
+
+    def _on_deselect_all(self, button):
+        for cb in self.checkboxes:
+            cb.set_active(False)
+
+    def get_selected_indices(self):
+        """Return 1-based indices of selected videos"""
+        return [i + 1 for i, cb in enumerate(self.checkboxes) if cb.get_active()]
+
+
 class YouTubeMp3Downloader(Gtk.Window):
     def __init__(self):
         super().__init__(title="YouTube MP3 Downloader")
@@ -81,11 +261,7 @@ class YouTubeMp3Downloader(Gtk.Window):
 
         # Create the menu
         menu = Gio.Menu()
-
-        # Preferences section
-        preferences_menu = Gio.Menu()
-        preferences_menu.append("Enable notifications", "app.toggle-notifications")
-        menu.append_section("Preferences", preferences_menu)
+        menu.append("Preferences", "app.show-preferences")
 
         # Set up the menu popover
         popover = Gtk.Popover.new_from_model(menu_button, menu)
@@ -143,27 +319,6 @@ class YouTubeMp3Downloader(Gtk.Window):
         url_box.pack_start(self.clear_url_button, False, False, 0)
         url_box.pack_start(self.url_status_label, False, False, 0)
         vbox.pack_start(url_box, False, False, 0)
-
-        # YouTube authentication checkbox and browser selector
-        auth_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
-        self.auth_checkbox = Gtk.CheckButton(label="🔐 Use YouTube authentication (for private playlists)")
-        self.auth_checkbox.set_tooltip_text("Uses browser cookies to access private playlists. Make sure you are logged into YouTube in the selected browser.")
-        self.auth_checkbox.set_active(self.use_youtube_auth)  # Apply loaded value
-        self.auth_checkbox.connect("toggled", self.on_auth_toggled)
-        auth_box.pack_start(self.auth_checkbox, False, False, 0)
-
-        browser_label = Gtk.Label(label="Browser:")
-        auth_box.pack_start(browser_label, False, False, 5)
-        self.browser_combo = Gtk.ComboBoxText()
-        self.browser_combo.append("firefox", "Firefox")
-        self.browser_combo.append("chrome", "Chrome")
-        self.browser_combo.append("brave", "Brave")
-        self.browser_combo.set_active_id(self.config.get('auth_browser', 'firefox'))
-        self.browser_combo.set_sensitive(self.use_youtube_auth)
-        self.browser_combo.connect("changed", self.on_browser_changed)
-        auth_box.pack_start(self.browser_combo, False, False, 0)
-
-        vbox.pack_start(auth_box, False, False, 0)
 
         # Destination folder
         folder_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
@@ -236,11 +391,6 @@ class YouTubeMp3Downloader(Gtk.Window):
     def _set_ui_sensitive(self, sensitive):
         """Sets the sensitivity of UI elements that should be disabled during download."""
         self.url_entry.set_sensitive(sensitive)
-        self.auth_checkbox.set_sensitive(sensitive)
-        # Find the folder_button and open_folder_button by their names or by iterating
-        # For now, let's assume we can access them directly if they were stored as attributes
-        # Or, we can make them attributes if they are not already.
-        # For simplicity, I'll make them attributes now.
         self.folder_button.set_sensitive(sensitive)
         self.open_folder_button.set_sensitive(sensitive)
         self.clear_url_button.set_sensitive(sensitive)
@@ -358,28 +508,6 @@ class YouTubeMp3Downloader(Gtk.Window):
         """Clear the URL field"""
         self.url_entry.set_text("")
         self.url_entry.grab_focus()
-
-    def on_auth_toggled(self, checkbox):
-        """Update authentication status when the checkbox is changed"""
-        try:
-            self.use_youtube_auth = checkbox.get_active()
-            self.browser_combo.set_sensitive(self.use_youtube_auth)
-            # Save authentication status in configuration
-            self.config['use_youtube_auth'] = self.use_youtube_auth
-            config.save_config(self.config)
-            logger.info(f"YouTube authentication {'enabled' if self.use_youtube_auth else 'disabled'}")
-        except Exception as e:
-            logger.error(f"Failed to save authentication setting: {e}")
-
-    def on_browser_changed(self, combo):
-        """Update selected browser for cookie authentication"""
-        try:
-            browser = combo.get_active_id()
-            self.config['auth_browser'] = browser
-            config.save_config(self.config)
-            logger.info(f"Authentication browser changed to: {browser}")
-        except Exception as e:
-            logger.error(f"Failed to save browser setting: {e}")
 
     def on_delete_event(self, widget, event):
         """Save window configuration and gracefully stop downloads before closing"""
@@ -617,14 +745,75 @@ class YouTubeMp3Downloader(Gtk.Window):
         self.download_path = str(download_dir)
         self.folder_entry.set_text(self.download_path)
 
+        use_auth = self.use_youtube_auth
+        auth_browser = self.config.get('auth_browser', 'firefox')
+
+        # For playlists, show preview dialog to let user select videos
+        if url_type == "Playlist":
+            self.progress_bar.set_text("Fetching playlist info...")
+            self.progress_bar.set_fraction(0.0)
+            self._set_ui_sensitive(False)
+            self.download_button.set_sensitive(False)
+
+            def fetch_and_preview():
+                try:
+                    info_cmd = ["yt-dlp", "--flat-playlist", "--print",
+                                "%(id)s:::%(playlist_index|)s%(playlist_index& - |)s%(title)s"]
+                    if use_auth:
+                        info_cmd.extend(["--cookies-from-browser", auth_browser])
+                    info_cmd.append(url)
+
+                    result = subprocess.run(info_cmd, capture_output=True, text=True, timeout=60)
+                    playlist_info = {}
+                    if result.returncode == 0:
+                        for line in result.stdout.strip().split('\n'):
+                            if ':::' in line:
+                                parts = line.split(':::', 1)
+                                if len(parts) == 2:
+                                    playlist_info[parts[0].strip()] = parts[1].strip()
+                    GLib.idle_add(self._show_playlist_preview, url, url_type, use_auth, auth_browser, playlist_info)
+                except Exception as e:
+                    logger.error(f"Failed to fetch playlist info: {e}")
+                    GLib.idle_add(self._show_playlist_preview, url, url_type, use_auth, auth_browser, {})
+
+            threading.Thread(target=fetch_and_preview, daemon=True).start()
+            return
+
+        self._start_download(url, url_type, use_auth, auth_browser)
+
+    def _show_playlist_preview(self, url, url_type, use_auth, auth_browser, playlist_info):
+        """Show playlist preview dialog after fetching info"""
+        self._set_ui_sensitive(True)
+        self.download_button.set_sensitive(True)
+        self.progress_bar.set_text("Waiting...")
+
+        if not playlist_info:
+            # Could not fetch info, proceed with full download
+            self.log_message("Could not fetch playlist info, downloading all videos...")
+            self._start_download(url, url_type, use_auth, auth_browser)
+            return
+
+        dialog = PlaylistPreviewDialog(self, playlist_info)
+        response = dialog.run()
+
+        if response == Gtk.ResponseType.OK:
+            selected = dialog.get_selected_indices()
+            dialog.destroy()
+            if not selected:
+                self.show_error_dialog("No videos selected for download.")
+                return
+            playlist_items = ",".join(str(i) for i in selected)
+            self._start_download(url, url_type, use_auth, auth_browser, playlist_items=playlist_items)
+        else:
+            dialog.destroy()
+
+    def _start_download(self, url, url_type, use_auth, auth_browser, playlist_items=None):
+        """Start the download thread"""
         # Reset download status
         self.download_stopped.clear()
         self.download_cancel_requested.clear()
         self.current_downloading_file = None
         self.current_download_original = None
-
-        use_auth = self.use_youtube_auth
-        auth_browser = self.config.get('auth_browser', 'firefox')
 
         # Disable UI elements
         self._set_ui_sensitive(False)
@@ -643,6 +832,8 @@ class YouTubeMp3Downloader(Gtk.Window):
 
         self.log_message("Starting download of: {}".format(url))
         self.log_message("Destination: {}".format(self.download_path))
+        if playlist_items:
+            self.log_message("Selected videos: {}".format(playlist_items))
         self.log_message("-" * 60)
         logger.info(f"Starting download thread for {url_type}")
 
@@ -650,7 +841,7 @@ class YouTubeMp3Downloader(Gtk.Window):
         try:
             self._download_thread = threading.Thread(
                 target=download.download_thread,
-                args=(self, url, url_type, self.download_path, use_auth, auth_browser)
+                args=(self, url, url_type, self.download_path, use_auth, auth_browser, playlist_items)
             )
             self._download_thread.daemon = True
             self._download_thread.start()
