@@ -1,17 +1,32 @@
 
+from __future__ import annotations
+
 import subprocess
 import re
 import os
 import glob
+from typing import TYPE_CHECKING, Optional
 from pathlib import Path
 from gi.repository import GLib
 
 from .exceptions import DownloadError, ValidationError
 from .logger import get_logger
 
+if TYPE_CHECKING:
+    from .app_window import YouTubeMp3Downloader
+
 logger = get_logger(__name__)
 
-def download_thread(window, url, url_type, download_path, use_auth, auth_browser="firefox", playlist_items=None):
+
+def download_thread(
+    window: YouTubeMp3Downloader,
+    url: str,
+    url_type: str,
+    download_path: str,
+    use_auth: bool,
+    auth_browser: str = "firefox",
+    playlist_items: Optional[str] = None,
+) -> None:
     """Run yt-dlp in a separate thread"""
     logger.info(f"Download thread started for {url_type}: {url}")
     
@@ -396,7 +411,7 @@ def download_thread(window, url, url_type, download_path, use_auth, auth_browser
         GLib.idle_add(window._set_ui_sensitive, True)
 
 
-def cleanup_partial_files(window):
+def cleanup_partial_files(window: YouTubeMp3Downloader) -> None:
     """Delete partial files left by yt-dlp when the download is stopped"""
     logger.info("Starting cleanup of partial files")
     try:

@@ -18,17 +18,11 @@ class ConfigurationError(YouTubeMp3DownloaderError):
 
 class DependencyError(YouTubeMp3DownloaderError):
     """Exception raised when required dependencies are missing."""
-    
-    def __init__(self, missing_deps):
-        """
-        Initialize DependencyError.
-        
-        Args:
-            missing_deps: List of missing dependency names or a single dependency name
-        """
+
+    def __init__(self, missing_deps: "list[str] | str") -> None:
         if isinstance(missing_deps, str):
             missing_deps = [missing_deps]
-        self.missing_deps = missing_deps
+        self.missing_deps: list[str] = missing_deps
         deps_str = ", ".join(missing_deps)
         super().__init__(f"Missing required dependencies: {deps_str}")
 

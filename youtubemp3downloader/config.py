@@ -1,5 +1,8 @@
 
+from __future__ import annotations
+
 import json
+from typing import Any, Dict
 from pathlib import Path
 
 from .exceptions import ConfigurationError
@@ -13,13 +16,13 @@ CONFIG_FILE = CONFIG_DIR / "config.json"
 LEGACY_CONFIG_FILE = Path.home() / ".youtube-mp3-downloader-config.json"
 
 
-def _validate_config(config):
+def _validate_config(config: Any) -> Dict[str, Any]:
     """
     Validate the configuration structure.
-    
+
     Args:
         config: Configuration dictionary to validate
-        
+
     Returns:
         Validated configuration dictionary
     """
@@ -36,10 +39,10 @@ def _validate_config(config):
     return validated
 
 
-def load_config():
+def load_config() -> Dict[str, Any]:
     """
     Load configuration from JSON file.
-    
+
     Returns:
         Configuration dictionary (empty dict if not found or invalid)
     """
@@ -85,13 +88,13 @@ def load_config():
     # Return default config
     return {}
 
-def save_config(config):
+def save_config(config: Dict[str, Any]) -> None:
     """
     Save configuration to JSON file.
-    
+
     Args:
         config: Configuration dictionary to save
-        
+
     Raises:
         ConfigurationError: If the configuration cannot be saved
     """

@@ -6,17 +6,18 @@ import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GLib, Gio
 
-from .app_window import YouTubeMp3Downloader, PreferencesDialog
+from .app_window import YouTubeMp3Downloader
+from .dialogs import PreferencesDialog
 from . import config
 from .exceptions import DependencyError
 from .logger import get_logger
 
 logger = get_logger(__name__)
 
-def check_dependencies():
+def check_dependencies() -> bool:
     """
     Check for required command-line tools.
-    
+
     Raises:
         DependencyError: If required dependencies are missing
     """
@@ -157,7 +158,7 @@ class Application(Gtk.Application):
         except Exception as e:
             logger.error(f"Failed to toggle notifications: {e}")
 
-def main():
+def main() -> int:
     """Main entry point for the application."""
     logger.info("YouTube MP3 Downloader starting...")
     

@@ -15,7 +15,7 @@ LOG_DIR = Path.home() / ".config" / "youtube-mp3-downloader"
 LOG_FILE = LOG_DIR / "app.log"
 
 
-def setup_logger(name="youtubemp3downloader", level=logging.INFO):
+def setup_logger(name: str = "youtubemp3downloader", level: int = logging.INFO) -> logging.Logger:
     """
     Set up and configure the application logger.
     
@@ -69,7 +69,7 @@ def setup_logger(name="youtubemp3downloader", level=logging.INFO):
     return logger
 
 
-def get_logger(name="youtubemp3downloader"):
+def get_logger(name: str = "youtubemp3downloader") -> logging.Logger:
     """
     Get or create a logger instance.
     
