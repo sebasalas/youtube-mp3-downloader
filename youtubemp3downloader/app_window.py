@@ -143,12 +143,26 @@ class YouTubeMp3Downloader(Gtk.Window):
         url_box.pack_start(self.url_status_label, False, False, 0)
         vbox.pack_start(url_box, False, False, 0)
 
-        # YouTube authentication checkbox
+        # YouTube authentication checkbox and browser selector
+        auth_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
         self.auth_checkbox = Gtk.CheckButton(label="🔐 Use YouTube authentication (for private playlists)")
-        self.auth_checkbox.set_tooltip_text("Uses Firefox cookies to access private playlists. Make sure you are logged into YouTube in Firefox.")
+        self.auth_checkbox.set_tooltip_text("Uses browser cookies to access private playlists. Make sure you are logged into YouTube in the selected browser.")
         self.auth_checkbox.set_active(self.use_youtube_auth)  # Apply loaded value
         self.auth_checkbox.connect("toggled", self.on_auth_toggled)
-        vbox.pack_start(self.auth_checkbox, False, False, 0)
+        auth_box.pack_start(self.auth_checkbox, False, False, 0)
+
+        browser_label = Gtk.Label(label="Browser:")
+        auth_box.pack_start(browser_label, False, False, 5)
+        self.browser_combo = Gtk.ComboBoxText()
+        self.browser_combo.append("firefox", "Firefox")
+        self.browser_combo.append("chrome", "Chrome")
+        self.browser_combo.append("brave", "Brave")
+        self.browser_combo.set_active_id(self.config.get('auth_browser', 'firefox'))
+        self.browser_combo.set_sensitive(self.use_youtube_auth)
+        self.browser_combo.connect("changed", self.on_browser_changed)
+        auth_box.pack_start(self.browser_combo, False, False, 0)
+
+        vbox.pack_start(auth_box, False, False, 0)
 
         # Destination folder
         folder_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
@@ -348,12 +362,23 @@ class YouTubeMp3Downloader(Gtk.Window):
         """Update authentication status when the checkbox is changed"""
         try:
             self.use_youtube_auth = checkbox.get_active()
+            self.browser_combo.set_sensitive(self.use_youtube_auth)
             # Save authentication status in configuration
             self.config['use_youtube_auth'] = self.use_youtube_auth
             config.save_config(self.config)
             logger.info(f"YouTube authentication {'enabled' if self.use_youtube_auth else 'disabled'}")
         except Exception as e:
             logger.error(f"Failed to save authentication setting: {e}")
+
+    def on_browser_changed(self, combo):
+        """Update selected browser for cookie authentication"""
+        try:
+            browser = combo.get_active_id()
+            self.config['auth_browser'] = browser
+            config.save_config(self.config)
+            logger.info(f"Authentication browser changed to: {browser}")
+        except Exception as e:
+            logger.error(f"Failed to save browser setting: {e}")
 
     def on_delete_event(self, widget, event):
         """Save window configuration before closing"""
@@ -576,6 +601,7 @@ class YouTubeMp3Downloader(Gtk.Window):
         self.current_download_original = None
 
         use_auth = self.use_youtube_auth
+        auth_browser = self.config.get('auth_browser', 'firefox')
 
         # Disable UI elements
         self._set_ui_sensitive(False)
@@ -601,7 +627,7 @@ class YouTubeMp3Downloader(Gtk.Window):
         try:
             thread = threading.Thread(
                 target=download.download_thread,
-                args=(self, url, url_type, self.download_path, use_auth)
+                args=(self, url, url_type, self.download_path, use_auth, auth_browser)
             )
             thread.daemon = True
             thread.start()

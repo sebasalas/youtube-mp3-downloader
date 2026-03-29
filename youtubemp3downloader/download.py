@@ -11,7 +11,7 @@ from .logger import get_logger
 
 logger = get_logger(__name__)
 
-def download_thread(window, url, url_type, download_path, use_auth):
+def download_thread(window, url, url_type, download_path, use_auth, auth_browser="firefox"):
     """Run yt-dlp in a separate thread"""
     logger.info(f"Download thread started for {url_type}: {url}")
     
@@ -38,7 +38,7 @@ def download_thread(window, url, url_type, download_path, use_auth):
                     "%(id)s:::%(playlist_index|)s%(playlist_index& - |)s%(title)s",
                 ]
                 if use_auth:
-                    info_cmd.extend(["--cookies-from-browser", "firefox"])
+                    info_cmd.extend(["--cookies-from-browser", auth_browser])
                 info_cmd.append(url)
 
                 info_process = subprocess.run(
@@ -94,11 +94,12 @@ def download_thread(window, url, url_type, download_path, use_auth):
         ]
 
         if use_auth:
-            cmd.extend(["--cookies-from-browser", "firefox"])
-            GLib.idle_add(window.log_message, "🔐 Authentication enabled: using Firefox cookies")
-            GLib.idle_add(window.log_message, "   (Make sure you are logged into YouTube in Firefox)")
+            cmd.extend(["--cookies-from-browser", auth_browser])
+            browser_name = auth_browser.capitalize()
+            GLib.idle_add(window.log_message, "🔐 Authentication enabled: using {} cookies".format(browser_name))
+            GLib.idle_add(window.log_message, "   (Make sure you are logged into YouTube in {})".format(browser_name))
             GLib.idle_add(window.log_message, "")
-            logger.info("Using Firefox cookies for authentication")
+            logger.info("Using %s cookies for authentication", browser_name)
 
         cmd.append(url)
 
