@@ -1,21 +1,20 @@
-
 import gi
 gi.require_version('Gtk', '3.0')
 gi.require_version('Gdk', '3.0')
-from gi.repository import Gtk, Gdk, GLib, Gio
-import subprocess
-import threading
-import os
-import re
-import shutil
-from pathlib import Path
+from gi.repository import Gtk, Gdk, GLib, Gio  # noqa: E402
+import subprocess  # noqa: E402
+import threading  # noqa: E402
+import os  # noqa: E402
+import re  # noqa: E402
+import shutil  # noqa: E402
+from pathlib import Path  # noqa: E402
 
-from . import config
-from . import utils
-from . import download
-from .dialogs import PlaylistPreviewDialog
-from .exceptions import ValidationError
-from .logger import get_logger
+from . import config  # noqa: E402
+from . import utils  # noqa: E402
+from . import download  # noqa: E402
+from .dialogs import PlaylistPreviewDialog  # noqa: E402
+from .exceptions import ValidationError  # noqa: E402
+from .logger import get_logger  # noqa: E402
 
 logger = get_logger(__name__)
 
@@ -246,7 +245,7 @@ class YouTubeMp3Downloader(Gtk.Window):
                 Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
                 Gtk.STOCK_OPEN, Gtk.ResponseType.OK
             )
-            
+
             # Try to set current folder, but don't fail if it doesn't exist
             try:
                 if os.path.isdir(self.download_path):
@@ -279,7 +278,7 @@ class YouTubeMp3Downloader(Gtk.Window):
                 logger.warning(f"Download folder does not exist: {self.download_path}")
                 self.show_error_dialog(f"Folder does not exist:\n{self.download_path}")
                 return
-            
+
             # Check if xdg-open is available
             if shutil.which("xdg-open"):
                 subprocess.Popen(
@@ -411,8 +410,8 @@ class YouTubeMp3Downloader(Gtk.Window):
                     "-i", icon,
                     title,
                     message
-                ], check=False, timeout=5, 
-                stdout=subprocess.DEVNULL, 
+                ], check=False, timeout=5,
+                stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL)
                 logger.debug(f"Notification sent via notify-send: {title}")
                 return
@@ -424,7 +423,7 @@ class YouTubeMp3Downloader(Gtk.Window):
                 logger.warning(f"Unexpected error with notify-send: {e}")
         else:
             logger.debug("notify-send not available")
-        
+
         # Silent fail - notifications are optional
         logger.debug("All notification methods failed, continuing without notification")
 
@@ -509,7 +508,7 @@ class YouTubeMp3Downloader(Gtk.Window):
     def on_download_clicked(self, button):
         """Start download"""
         url = self.url_entry.get_text().strip()
-        
+
         logger.info("Download button clicked")
 
         if not url:

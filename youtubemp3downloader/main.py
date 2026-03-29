@@ -1,18 +1,18 @@
-
 import sys
 import shutil
 
 import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GLib, Gio
+from gi.repository import Gtk, GLib, Gio  # noqa: E402
 
-from .app_window import YouTubeMp3Downloader
-from .dialogs import PreferencesDialog
-from . import config
-from .exceptions import DependencyError
-from .logger import get_logger
+from .app_window import YouTubeMp3Downloader  # noqa: E402
+from .dialogs import PreferencesDialog  # noqa: E402
+from . import config  # noqa: E402
+from .exceptions import DependencyError  # noqa: E402
+from .logger import get_logger  # noqa: E402
 
 logger = get_logger(__name__)
+
 
 def check_dependencies() -> bool:
     """
@@ -22,7 +22,7 @@ def check_dependencies() -> bool:
         DependencyError: If required dependencies are missing
     """
     logger.info("Checking dependencies...")
-    
+
     # Check required dependencies
     missing_deps = []
     if not shutil.which("yt-dlp"):
@@ -34,7 +34,7 @@ def check_dependencies() -> bool:
 
     if missing_deps:
         logger.critical(f"Missing required dependencies: {', '.join(missing_deps)}")
-        
+
         # Show error dialog
         try:
             dialog = Gtk.MessageDialog(
@@ -55,9 +55,9 @@ def check_dependencies() -> bool:
             dialog.destroy()
         except Exception as e:
             logger.error(f"Failed to show dependency error dialog: {e}")
-        
+
         raise DependencyError(missing_deps)
-    
+
     # Check optional dependencies and warn if missing
     optional_deps = []
     if not shutil.which("notify-send"):
@@ -66,10 +66,10 @@ def check_dependencies() -> bool:
     if not shutil.which("xdg-open"):
         logger.warning("xdg-open not found - opening folders may not work")
         optional_deps.append("xdg-open")
-    
+
     if optional_deps:
         logger.info(f"Optional dependencies missing (non-critical): {', '.join(optional_deps)}")
-    
+
     logger.info("All required dependencies found")
     return True
 
@@ -158,17 +158,18 @@ class Application(Gtk.Application):
         except Exception as e:
             logger.error(f"Failed to toggle notifications: {e}")
 
+
 def main() -> int:
     """Main entry point for the application."""
     logger.info("YouTube MP3 Downloader starting...")
-    
+
     try:
         # Check dependencies before starting the app
         check_dependencies()
     except DependencyError:
         logger.critical("Cannot start application due to missing dependencies")
         return 1
-    
+
     try:
         app = Application()
         return app.run(sys.argv)

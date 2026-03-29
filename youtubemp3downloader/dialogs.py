@@ -12,10 +12,10 @@ from typing import TYPE_CHECKING, Dict, List
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, GLib
+from gi.repository import Gtk, GLib  # noqa: E402
 
-from . import config
-from .logger import get_logger
+from . import config  # noqa: E402
+from .logger import get_logger  # noqa: E402
 
 if TYPE_CHECKING:
     from .app_window import YouTubeMp3Downloader

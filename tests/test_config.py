@@ -2,7 +2,6 @@
 
 import json
 import pytest
-from pathlib import Path
 
 from youtubemp3downloader.config import load_config, save_config, _validate_config
 from youtubemp3downloader.exceptions import ConfigurationError
