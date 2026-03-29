@@ -172,7 +172,7 @@ def main() -> int:
 
     try:
         app = Application()
-        return app.run(sys.argv)
+        return int(app.run(sys.argv))
     except Exception as e:
         logger.critical(f"Application crashed: {e}", exc_info=True)
         return 1
