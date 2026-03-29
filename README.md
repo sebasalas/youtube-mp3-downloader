@@ -22,10 +22,14 @@ The app features a clean, easy-to-use graphical interface built with GTK.
 - **Simple Interface:** Just paste a URL and click download.
 - **High-Quality Audio:** Converts videos to 320kbps CBR MP3 files.
 - **Video and Playlist Support:** Download single videos or entire playlists.
+- **Playlist Preview:** See all videos in a playlist and select which ones to download before starting.
 - **Metadata and Thumbnails:** Automatically embeds the video thumbnail and metadata into the MP3 file.
-- **Private Playlist Access:** Log in to YouTube in Firefox to download your private or unlisted playlists.
+- **Private Playlist Access:** Log in to YouTube in your preferred browser (Firefox, Chrome, or Brave) to download private or unlisted playlists.
+- **Download Speed and ETA:** The progress bar shows real-time download speed and estimated time remaining.
+- **Duplicate Detection:** Warns you before overwriting existing MP3 files.
 - **Full Control:** A clear progress bar, live log, and a stop button give you full control over the download process.
 - **Smart Error Handling:** The app continues downloading a playlist even if one video fails and provides a detailed error report.
+- **Preferences Dialog:** Configure authentication, browser for cookies, and notification settings from the menu.
 
 ## Installation (Linux)
 
@@ -57,6 +61,13 @@ sudo ./install.sh
 
 The application will now be available as "YouTube MP3 Downloader" in your desktop's application menu. To remove it, you can run `sudo ./uninstall.sh`.
 
+### Install with pip
+
+```bash
+pip install .
+youtube-mp3-downloader
+```
+
 ### Manual Execution (for Developers)
 
 If you prefer not to install it system-wide, you can run the application directly from the terminal:
@@ -75,19 +86,21 @@ chmod +x youtube_mp3_downloader.py
 2.  Paste the URL of a YouTube video or playlist.
 3.  Select the folder where you want to save the MP3 file(s).
 4.  Click **"Download MP3 (320kbps)"**.
-5.  Wait for the download to finish.
+5.  For playlists, a preview dialog will appear where you can select which videos to download.
+6.  Wait for the download to finish.
 
 ### Private or Unlisted Playlists
 
 To download content that isn't public, you need to be logged into YouTube.
 
-1.  Make sure you are signed into YouTube in your **Firefox** browser.
-2.  In the app, check the box **"🔐 Use YouTube authentication"**.
-3.  Paste the private video or playlist URL and start the download.
+1.  Open **Preferences** from the hamburger menu (top right).
+2.  Check **"Use YouTube authentication"** and select your browser (Firefox, Chrome, or Brave).
+3.  Make sure you are signed into YouTube in that browser.
+4.  Paste the private video or playlist URL and start the download.
 
 ## Configuration
 
-The application saves your preferences (like the last used folder and window size) in `~/.config/youtube-mp3-downloader/config.json`. You can delete this file to reset the configuration.
+The application saves your preferences (like the last used folder, window size, authentication settings, and notification preferences) in `~/.config/youtube-mp3-downloader/config.json`. You can delete this file to reset the configuration.
 
 ---
 
@@ -98,28 +111,40 @@ The application saves your preferences (like the last used folder and window siz
 ```
 youtube-mp3-downloader/
 ├── youtube_mp3_downloader.py      # Main executable script (entry point)
+├── pyproject.toml                 # Project metadata and packaging config
 ├── youtubemp3downloader/          # Python package for the application
 │   ├── __init__.py
 │   ├── main.py                    # Application setup and main loop
 │   ├── app_window.py              # GTK window and UI logic
+│   ├── dialogs.py                 # Preferences and playlist preview dialogs
 │   ├── download.py                # yt-dlp download handling
 │   ├── config.py                  # Configuration management
 │   ├── exceptions.py              # Custom exception classes
 │   ├── logger.py                  # Logging configuration
 │   └── utils.py                   # Utility functions (e.g., URL validation)
+├── tests/
+│   ├── test_utils.py              # URL validation tests
+│   └── test_config.py             # Configuration management tests
 ├── data/
 │   ├── download.svg               # Download animation icon
 │   └── youtube-mp3-downloader.svg # Application icon
+├── .github/workflows/ci.yml      # GitHub Actions CI pipeline
+├── com.github.sebasalas.youtube-mp3-downloader.yml  # Flatpak manifest
 ├── images/                        # Screenshots for README
 ├── install.sh                     # Installation script
 ├── uninstall.sh                   # Uninstallation script
-├── youtube-mp3-downloader.desktop.template # Desktop entry template
-└── README.md
+└── youtube-mp3-downloader.desktop.template # Desktop entry template
+```
+
+### Running Tests
+
+```bash
+python3 -m pytest tests/ -v
 ```
 
 ### Dependencies
 
-System dependencies are listed in the installation section. The only Python package dependency is `yt-dlp`, which is included in `requirements.txt`.
+System dependencies are listed in the installation section. Python package dependencies are declared in `pyproject.toml`.
 
 ## Credits
 
