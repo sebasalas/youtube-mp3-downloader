@@ -104,9 +104,13 @@ youtube-mp3-downloader/
 │   ├── app_window.py              # GTK window and UI logic
 │   ├── download.py                # yt-dlp download handling
 │   ├── config.py                  # Configuration management
+│   ├── exceptions.py              # Custom exception classes
+│   ├── logger.py                  # Logging configuration
 │   └── utils.py                   # Utility functions (e.g., URL validation)
 ├── data/
+│   ├── download.svg               # Download animation icon
 │   └── youtube-mp3-downloader.svg # Application icon
+├── images/                        # Screenshots for README
 ├── install.sh                     # Installation script
 ├── uninstall.sh                   # Uninstallation script
 ├── youtube-mp3-downloader.desktop.template # Desktop entry template
