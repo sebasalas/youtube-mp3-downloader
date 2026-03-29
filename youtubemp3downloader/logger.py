@@ -18,22 +18,22 @@ LOG_FILE = LOG_DIR / "app.log"
 def setup_logger(name: str = "youtubemp3downloader", level: int = logging.INFO) -> logging.Logger:
     """
     Set up and configure the application logger.
-    
+
     Args:
         name: Logger name (default: "youtubemp3downloader")
         level: Logging level (default: logging.INFO)
-    
+
     Returns:
         Configured logger instance
     """
     logger = logging.getLogger(name)
-    
+
     # Avoid adding handlers multiple times
     if logger.handlers:
         return logger
-    
+
     logger.setLevel(level)
-    
+
     # Create console handler for development
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
@@ -42,12 +42,12 @@ def setup_logger(name: str = "youtubemp3downloader", level: int = logging.INFO) 
     )
     console_handler.setFormatter(console_format)
     logger.addHandler(console_handler)
-    
+
     # Create file handler for production with rotation
     try:
         # Create log directory if it doesn't exist
         LOG_DIR.mkdir(parents=True, exist_ok=True)
-        
+
         # Rotating file handler: max 5MB per file, keep 3 backup files
         file_handler = logging.handlers.RotatingFileHandler(
             LOG_FILE,
@@ -65,17 +65,17 @@ def setup_logger(name: str = "youtubemp3downloader", level: int = logging.INFO) 
     except (OSError, PermissionError) as e:
         # If we can't create the file handler, just continue with console logging
         logger.warning(f"Could not set up file logging: {e}")
-    
+
     return logger
 
 
 def get_logger(name: str = "youtubemp3downloader") -> logging.Logger:
     """
     Get or create a logger instance.
-    
+
     Args:
         name: Logger name (default: "youtubemp3downloader")
-    
+
     Returns:
         Logger instance
     """

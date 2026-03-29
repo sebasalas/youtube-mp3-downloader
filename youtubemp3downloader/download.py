@@ -29,17 +29,17 @@ def download_thread(
 ) -> None:
     """Run yt-dlp in a separate thread"""
     logger.info(f"Download thread started for {url_type}: {url}")
-    
+
     try:
         # Validate download path
         if not download_path or not os.path.isdir(download_path):
             logger.error(f"Invalid download path: {download_path}")
             raise ValidationError(f"Download path is not a valid directory: {download_path}")
-        
+
         if not os.access(download_path, os.W_OK):
             logger.error(f"Download path not writable: {download_path}")
             raise ValidationError(f"Download path is not writable: {download_path}")
-        
+
         playlist_info = {}
         should_fetch_playlist_info = ((url_type == "Playlist") or use_auth) and not playlist_items
         if should_fetch_playlist_info:
@@ -57,9 +57,9 @@ def download_thread(
                 info_cmd.append(url)
 
                 info_process = subprocess.run(
-                    info_cmd, 
-                    capture_output=True, 
-                    text=True, 
+                    info_cmd,
+                    capture_output=True,
+                    text=True,
                     timeout=60
                 )
                 if info_process.returncode == 0:
@@ -70,7 +70,10 @@ def download_thread(
                                 video_id = parts[0].strip()
                                 title = parts[1].strip()
                                 playlist_info[video_id] = title
-                    GLib.idle_add(window.log_message, "✓ Playlist information obtained: {} videos".format(len(playlist_info)))
+                    GLib.idle_add(
+                        window.log_message,
+                        "✓ Playlist information obtained: {} videos".format(len(playlist_info))
+                    )
                     GLib.idle_add(window.log_message, "")
                     logger.info(f"Playlist info retrieved: {len(playlist_info)} videos")
                 else:
@@ -308,7 +311,8 @@ def download_thread(
             GLib.idle_add(window.log_message, "")
             GLib.idle_add(window.log_message, "=" * 60)
             if successful_downloads > 0:
-                GLib.idle_add(window.log_message, "ℹ Download stopped. Files completed before stopping: {}".format(successful_downloads))
+                msg = "ℹ Download stopped. Files completed before stopping: {}"
+                GLib.idle_add(window.log_message, msg.format(successful_downloads))
                 logger.info(f"Download stopped with {successful_downloads} files completed")
             else:
                 GLib.idle_add(window.log_message, "ℹ Download stopped. No files were completed.")
@@ -324,11 +328,17 @@ def download_thread(
 
             if failed_downloads > 0:
                 GLib.idle_add(window.progress_bar.set_text, "Completed with warnings")
-                GLib.idle_add(window.log_message, "✓ Download completed: {} file(s) downloaded".format(successful_downloads))
+                msg = "✓ Download completed: {} file(s) downloaded"
+                GLib.idle_add(window.log_message, msg.format(successful_downloads))
                 if skipped_downloads > 0:
-                    GLib.idle_add(window.log_message, "⏭ Skipped (already existed): {}".format(skipped_downloads))
-                GLib.idle_add(window.log_message, "⚠ Warning: {} video(s) unavailable or failed".format(failed_downloads))
-                logger.warning(f"Download completed with {successful_downloads} successes, {skipped_downloads} skipped, {failed_downloads} failures")
+                    msg = "⏭ Skipped (already existed): {}"
+                    GLib.idle_add(window.log_message, msg.format(skipped_downloads))
+                msg = "⚠ Warning: {} video(s) unavailable or failed"
+                GLib.idle_add(window.log_message, msg.format(failed_downloads))
+                logger.warning(
+                    f"Download completed with {successful_downloads} successes, "
+                    f"{skipped_downloads} skipped, {failed_downloads} failures"
+                )
 
                 if failed_videos:
                     GLib.idle_add(window.log_message, "")
@@ -339,23 +349,42 @@ def download_thread(
                         GLib.idle_add(window.log_message, "   Error: {}".format(failed['line']))
                     GLib.idle_add(window.log_message, "-" * 60)
 
-                GLib.idle_add(window.show_success_dialog,
-                                "Download completed!\n\n✓ {} file(s) downloaded\n⚠ {} video(s) unavailable".format(successful_downloads, failed_downloads))
-                GLib.idle_add(window.send_notification,
-                                "Download completed with warnings",
-                                "{} file(s) downloaded, {} unavailable".format(successful_downloads, failed_downloads),
-                                "dialog-warning")
+                GLib.idle_add(
+                    window.show_success_dialog,
+                    "Download completed!\n\n✓ {} file(s) downloaded\n"
+                    "⚠ {} video(s) unavailable".format(successful_downloads, failed_downloads)
+                )
+                GLib.idle_add(
+                    window.send_notification,
+                    "Download completed with warnings",
+                    "{} file(s) downloaded, {} unavailable".format(
+                        successful_downloads, failed_downloads
+                    ),
+                    "dialog-warning"
+                )
             else:
                 GLib.idle_add(window.progress_bar.set_text, "Completed!")
-                GLib.idle_add(window.log_message, "✓ Download completed successfully: {} file(s)".format(successful_downloads))
+                msg = "✓ Download completed successfully: {} file(s)"
+                GLib.idle_add(window.log_message, msg.format(successful_downloads))
                 if skipped_downloads > 0:
-                    GLib.idle_add(window.log_message, "⏭ Skipped (already existed): {}".format(skipped_downloads))
-                logger.info(f"Download completed successfully: {successful_downloads} files, {skipped_downloads} skipped")
-                GLib.idle_add(window.show_success_dialog, "Download completed successfully!\n\n{} file(s) downloaded".format(successful_downloads))
-                GLib.idle_add(window.send_notification,
-                                "Download completed!",
-                                "{} file(s) downloaded successfully".format(successful_downloads),
-                                "emblem-default")
+                    msg = "⏭ Skipped (already existed): {}"
+                    GLib.idle_add(window.log_message, msg.format(skipped_downloads))
+                logger.info(
+                    f"Download completed successfully: {successful_downloads} files, "
+                    f"{skipped_downloads} skipped"
+                )
+                GLib.idle_add(
+                    window.show_success_dialog,
+                    "Download completed successfully!\n\n{} file(s) downloaded".format(
+                        successful_downloads
+                    )
+                )
+                GLib.idle_add(
+                    window.send_notification,
+                    "Download completed!",
+                    "{} file(s) downloaded successfully".format(successful_downloads),
+                    "emblem-default"
+                )
         elif process.returncode == 0:
             GLib.idle_add(window.progress_bar.set_fraction, 1.0)
             GLib.idle_add(window.progress_bar.set_text, "Completed!")
@@ -364,16 +393,22 @@ def download_thread(
             GLib.idle_add(window.log_message, "✓ Process completed")
             logger.info("Process completed with return code 0 but no files downloaded")
             GLib.idle_add(window.show_success_dialog, "Process completed!")
-            GLib.idle_add(window.send_notification,
-                            "Process completed",
-                            "The download process has finished",
-                            "dialog-information")
+            GLib.idle_add(
+                window.send_notification,
+                "Process completed",
+                "The download process has finished",
+                "dialog-information"
+            )
         else:
             GLib.idle_add(window.progress_bar.set_text, "Error")
             GLib.idle_add(window.log_message, "")
-            GLib.idle_add(window.log_message, "✗ Error: Could not download any files (code {})".format(process.returncode))
+            msg = "✗ Error: Could not download any files (code {})"
+            GLib.idle_add(window.log_message, msg.format(process.returncode))
             logger.error(f"Download failed with return code {process.returncode}")
-            GLib.idle_add(window.show_error_dialog, "Error: Could not download any files.\nCheck the log for more details.")
+            GLib.idle_add(
+                window.show_error_dialog,
+                "Error: Could not download any files.\nCheck the log for more details."
+            )
 
     except ValidationError as e:
         logger.error(f"Validation error in download: {e}")
@@ -420,7 +455,7 @@ def cleanup_partial_files(window: YouTubeMp3Downloader) -> None:
             targets = list(window.active_download_targets)
 
         logger.debug(f"Cleaning up {len(targets)} target(s)")
-        
+
         for target in targets:
             try:
                 base, original_ext = os.path.splitext(target)
@@ -483,7 +518,7 @@ def cleanup_partial_files(window: YouTubeMp3Downloader) -> None:
                             files_deleted += 1
                 except (OSError, PermissionError) as e:
                     logger.warning(f"Could not process MP3 {mp3_candidate}: {e}")
-                    
+
             except Exception as file_error:
                 logger.error(f"Error cleaning target {target}: {file_error}")
                 window.log_message("⚠ Could not clean {}: {}".format(os.path.basename(target), str(file_error)))

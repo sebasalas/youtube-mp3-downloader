@@ -99,7 +99,10 @@ class YouTubeMp3Downloader(Gtk.Window):
 
         # Title
         title_label = Gtk.Label()
-        title_label.set_markup("<big><b>YouTube MP3 Downloader</b></big>\n<small>Supports individual videos and playlists</small>")
+        title_label.set_markup(
+            "<big><b>YouTube MP3 Downloader</b></big>\n"
+            "<small>Supports individual videos and playlists</small>"
+        )
         vbox.pack_start(title_label, False, False, 5)
 
         # Separator
@@ -137,7 +140,7 @@ class YouTubeMp3Downloader(Gtk.Window):
 
         url_box.pack_start(url_label, False, False, 0)
         url_box.pack_start(self.url_entry, True, True, 0)
-        url_box.pack_start(self.paste_url_button, False, False, 0) # Add paste button
+        url_box.pack_start(self.paste_url_button, False, False, 0)  # Add paste button
         url_box.pack_start(self.clear_url_button, False, False, 0)
         url_box.pack_start(self.url_status_label, False, False, 0)
         vbox.pack_start(url_box, False, False, 0)
@@ -411,8 +414,8 @@ class YouTubeMp3Downloader(Gtk.Window):
                     title,
                     message
                 ], check=False, timeout=5,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL)
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL)
                 logger.debug(f"Notification sent via notify-send: {title}")
                 return
             except subprocess.TimeoutExpired:
@@ -533,14 +536,30 @@ class YouTubeMp3Downloader(Gtk.Window):
                 if "/watch?v=" in url and len(re.findall(r'v=([\w-]+)', url)) > 0:
                     video_id = re.findall(r'v=([\w-]+)', url)[0]
                     if len(video_id) != 11:
-                        logger.warning(f"Invalid video ID length: {video_id} ({len(video_id)} chars)")
-                        self.show_error_dialog("Invalid video ID length.\nYouTube video IDs must be exactly 11 characters.\nFound: {} ({} characters)".format(video_id, len(video_id)))
+                        logger.warning(
+                            f"Invalid video ID length: {video_id} ({len(video_id)} chars)"
+                        )
+                        self.show_error_dialog(
+                            "Invalid video ID length.\n"
+                            "YouTube video IDs must be exactly 11 characters.\n"
+                            "Found: {} ({} characters)".format(video_id, len(video_id))
+                        )
                         return
                 logger.warning(f"Invalid YouTube URL format: {url}")
-                self.show_error_dialog("Invalid YouTube URL format.\n\nValid formats:\n• youtube.com/watch?v=VIDEO_ID (11 chars)\n• youtu.be/VIDEO_ID\n• youtube.com/playlist?list=PLAYLIST_ID\n• youtube.com/shorts/VIDEO_ID")
+                self.show_error_dialog(
+                    "Invalid YouTube URL format.\n\n"
+                    "Valid formats:\n"
+                    "• youtube.com/watch?v=VIDEO_ID (11 chars)\n"
+                    "• youtu.be/VIDEO_ID\n"
+                    "• youtube.com/playlist?list=PLAYLIST_ID\n"
+                    "• youtube.com/shorts/VIDEO_ID"
+                )
             else:
                 logger.warning(f"Not a YouTube URL: {url}")
-                self.show_error_dialog("This doesn't appear to be a YouTube URL.\nPlease enter a valid YouTube video or playlist URL.")
+                self.show_error_dialog(
+                    "This doesn't appear to be a YouTube URL.\n"
+                    "Please enter a valid YouTube video or playlist URL."
+                )
             return
 
         logger.info(f"Valid {url_type} URL: {url}")
