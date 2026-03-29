@@ -128,6 +128,8 @@ def download_thread(window, url, url_type, download_path, use_auth, auth_browser
         current_video_title = ""
         successful_downloads = 0
         failed_downloads = 0
+        skipped_downloads = 0
+        skipped_videos = []
         failed_videos = []
         current_video_index = 0
         total_videos = 0
@@ -163,8 +165,29 @@ def download_thread(window, url, url_type, download_path, use_auth, auth_browser
 
                     filename = os.path.basename(window.current_downloading_file)
                     current_video_title = os.path.splitext(filename)[0]
+
+                    # Duplicate detection: check if MP3 already exists
+                    base, _ = os.path.splitext(window.current_downloading_file)
+                    existing_mp3 = base + ".mp3"
+                    if os.path.isfile(existing_mp3) and os.path.getsize(existing_mp3) > 1024:
+                        mp3_name = os.path.basename(existing_mp3)
+                        GLib.idle_add(window.log_message, "⚠ Already exists, will be overwritten: {}".format(mp3_name))
+                        logger.info(f"Duplicate detected: {mp3_name}")
                 except (IndexError, AttributeError) as e:
                     logger.debug(f"Could not parse destination from line: {e}")
+
+            if "has already been downloaded" in line:
+                skipped_downloads += 1
+                video_name = current_video_title or "Unknown"
+                skipped_videos.append(video_name)
+                GLib.idle_add(window.log_message, "⏭ Skipped (already exists): {}".format(video_name))
+                logger.info(f"Skipped duplicate: {video_name}")
+                if window.current_download_original:
+                    with window.download_lock:
+                        window.active_download_targets.discard(window.current_download_original)
+                window.current_downloading_file = None
+                window.current_download_original = None
+                current_video_title = ""
 
             if "Deleting original file" in line:
                 successful_downloads += 1
@@ -223,21 +246,36 @@ def download_thread(window, url, url_type, download_path, use_auth, auth_browser
                 else:
                     GLib.idle_add(window.progress_bar.set_text, "Downloading playlist...")
 
-            if "%" in line and "ETA" in line:
+            if "%" in line and "[download]" in line:
                 try:
                     parts = line.split()
-                    for part in parts:
+                    percent = None
+                    speed = None
+                    eta = None
+                    for i, part in enumerate(parts):
                         if "%" in part:
-                            percent = float(part.replace("%", ""))
-                            GLib.idle_add(window.progress_bar.set_fraction, percent / 100)
-                            if total_videos > 0:
-                                progress_text = "Video {}/{} - {:.1f}%".format(current_video_index, total_videos, percent)
-                            else:
-                                progress_text = "{:.1f}%".format(percent)
-                            GLib.idle_add(window.progress_bar.set_text, progress_text)
-                            break
+                            try:
+                                percent = float(part.replace("%", ""))
+                            except ValueError:
+                                pass
+                        if part == "at" and i + 1 < len(parts):
+                            speed = parts[i + 1]
+                        if part == "ETA" and i + 1 < len(parts):
+                            eta = parts[i + 1]
+
+                    if percent is not None:
+                        GLib.idle_add(window.progress_bar.set_fraction, percent / 100)
+                        if total_videos > 0:
+                            progress_text = "Video {}/{} - {:.1f}%".format(current_video_index, total_videos, percent)
+                        else:
+                            progress_text = "{:.1f}%".format(percent)
+                        if speed:
+                            progress_text += " | {}".format(speed)
+                        if eta:
+                            progress_text += " | ETA {}".format(eta)
+                        GLib.idle_add(window.progress_bar.set_text, progress_text)
                 except (ValueError, IndexError) as e:
-                    logger.debug(f"Could not parse progress percentage: {e}")
+                    logger.debug(f"Could not parse progress: {e}")
 
         try:
             process.wait(timeout=30)
@@ -256,6 +294,8 @@ def download_thread(window, url, url_type, download_path, use_auth, auth_browser
             else:
                 GLib.idle_add(window.log_message, "ℹ Download stopped. No files were completed.")
                 logger.info("Download stopped with no files completed")
+            if skipped_downloads > 0:
+                GLib.idle_add(window.log_message, "⏭ Skipped (already existed): {}".format(skipped_downloads))
             return
 
         if successful_downloads > 0:
@@ -266,8 +306,10 @@ def download_thread(window, url, url_type, download_path, use_auth, auth_browser
             if failed_downloads > 0:
                 GLib.idle_add(window.progress_bar.set_text, "Completed with warnings")
                 GLib.idle_add(window.log_message, "✓ Download completed: {} file(s) downloaded".format(successful_downloads))
+                if skipped_downloads > 0:
+                    GLib.idle_add(window.log_message, "⏭ Skipped (already existed): {}".format(skipped_downloads))
                 GLib.idle_add(window.log_message, "⚠ Warning: {} video(s) unavailable or failed".format(failed_downloads))
-                logger.warning(f"Download completed with {successful_downloads} successes and {failed_downloads} failures")
+                logger.warning(f"Download completed with {successful_downloads} successes, {skipped_downloads} skipped, {failed_downloads} failures")
 
                 if failed_videos:
                     GLib.idle_add(window.log_message, "")
@@ -287,7 +329,9 @@ def download_thread(window, url, url_type, download_path, use_auth, auth_browser
             else:
                 GLib.idle_add(window.progress_bar.set_text, "Completed!")
                 GLib.idle_add(window.log_message, "✓ Download completed successfully: {} file(s)".format(successful_downloads))
-                logger.info(f"Download completed successfully: {successful_downloads} files")
+                if skipped_downloads > 0:
+                    GLib.idle_add(window.log_message, "⏭ Skipped (already existed): {}".format(skipped_downloads))
+                logger.info(f"Download completed successfully: {successful_downloads} files, {skipped_downloads} skipped")
                 GLib.idle_add(window.show_success_dialog, "Download completed successfully!\n\n{} file(s) downloaded".format(successful_downloads))
                 GLib.idle_add(window.send_notification,
                                 "Download completed!",
