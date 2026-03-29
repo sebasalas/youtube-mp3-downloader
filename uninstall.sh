@@ -7,7 +7,7 @@ set -e
 APP_NAME="youtube-mp3-downloader"
 INSTALL_DIR="/opt/$APP_NAME"
 ICON_NAME="youtube-mp3-downloader"
-ICON_INSTALL_PATH="/usr/share/icons/hicolor/256x256/apps/$ICON_NAME.png" # Ruta completa al archivo
+ICON_INSTALL_PATH="/usr/share/icons/hicolor/scalable/apps/$ICON_NAME.svg"
 # Detectar el directorio home del usuario real, incluso con sudo
 if [ -n "$SUDO_USER" ]; then
     USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)

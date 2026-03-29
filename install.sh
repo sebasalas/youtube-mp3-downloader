@@ -10,8 +10,8 @@ INSTALL_DIR="/opt/$APP_NAME"
 
 # Nombre y ubicación del icono
 ICON_NAME="youtube-mp3-downloader"
-ICON_SOURCE_PATH="data/$ICON_NAME.png" # Cambia a .png si usas ese formato
-ICON_INSTALL_PATH="/usr/share/icons/hicolor/256x256/apps"
+ICON_SOURCE_PATH="data/$ICON_NAME.svg"
+ICON_INSTALL_PATH="/usr/share/icons/hicolor/scalable/apps"
 
 # Detectar el directorio home del usuario real, incluso con sudo
 if [ -n "$SUDO_USER" ]; then
@@ -65,7 +65,7 @@ mkdir -p "$DESKTOP_ENTRY_DIR"
 
 # Reemplazar los marcadores de posición en la plantilla y crear el archivo final
 sed -e "s|__INSTALL_PATH__|$INSTALL_DIR|g" \
-    -e "s|__ICON_NAME__|$ICON_INSTALL_PATH/$ICON_NAME.png|g" \
+    -e "s|__ICON_NAME__|$ICON_INSTALL_PATH/$ICON_NAME.svg|g" \
     youtube-mp3-downloader.desktop.template > "$DESKTOP_ENTRY_FILE"
 
 # Ajustar permisos del lanzador

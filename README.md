@@ -106,7 +106,7 @@ youtube-mp3-downloader/
 │   ├── config.py                  # Configuration management
 │   └── utils.py                   # Utility functions (e.g., URL validation)
 ├── data/
-│   └── youtube-mp3-downloader.png # Application icon
+│   └── youtube-mp3-downloader.svg # Application icon
 ├── install.sh                     # Installation script
 ├── uninstall.sh                   # Uninstallation script
 ├── youtube-mp3-downloader.desktop.template # Desktop entry template
@@ -116,3 +116,7 @@ youtube-mp3-downloader/
 ### Dependencies
 
 System dependencies are listed in the installation section. The only Python package dependency is `yt-dlp`, which is included in `requirements.txt`.
+
+## Credits
+
+- Application icon from [Tela Circle Icon Theme](https://github.com/vinceliuice/Tela-circle-icon-theme) by [vinceliuice](https://github.com/vinceliuice), licensed under [GPLv3](https://github.com/vinceliuice/Tela-circle-icon-theme/blob/master/COPYING).
