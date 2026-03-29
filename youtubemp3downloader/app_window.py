@@ -36,12 +36,13 @@ class YouTubeMp3Downloader(Gtk.Window):
 
         # Current download process
         self.current_process = None
-        self.download_stopped = False
-        self.download_cancel_requested = False  # Flag to cancel before the process starts
+        self.download_stopped = threading.Event()
+        self.download_cancel_requested = threading.Event()
         self.current_downloading_file = None
         self.current_download_original = None
         self.download_lock = threading.Lock()
         self.active_download_targets = set()
+        self._download_thread = None
 
         # Apply saved window size
         window_width = self.config.get('window_width', 600)
@@ -381,7 +382,27 @@ class YouTubeMp3Downloader(Gtk.Window):
             logger.error(f"Failed to save browser setting: {e}")
 
     def on_delete_event(self, widget, event):
-        """Save window configuration before closing"""
+        """Save window configuration and gracefully stop downloads before closing"""
+        # Signal any running download to stop
+        self.download_stopped.set()
+        self.download_cancel_requested.set()
+
+        with self.download_lock:
+            process = self.current_process
+        if process:
+            try:
+                process.terminate()
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+            except Exception as e:
+                logger.warning(f"Error terminating process on close: {e}")
+
+        # Wait for download thread to finish
+        if self._download_thread and self._download_thread.is_alive():
+            self._download_thread.join(timeout=3)
+
         try:
             # Get current window size
             width, height = self.get_size()
@@ -484,24 +505,26 @@ class YouTubeMp3Downloader(Gtk.Window):
         logger.info("User requested download stop")
 
         # Mark as stopped and request cancellation
-        self.download_stopped = True
-        self.download_cancel_requested = True
+        self.download_stopped.set()
+        self.download_cancel_requested.set()
 
         # If there is a running process, terminate it
-        if self.current_process:
+        with self.download_lock:
+            process = self.current_process
+        if process:
             try:
-                self.current_process.terminate()  # Try to terminate gracefully
+                process.terminate()  # Try to terminate gracefully
                 logger.debug("Sent terminate signal to download process")
                 # Give time to terminate gracefully
                 try:
-                    self.current_process.wait(timeout=2)
+                    process.wait(timeout=2)
                     logger.debug("Download process terminated gracefully")
                 except subprocess.TimeoutExpired:
                     # If it does not terminate in 2 seconds, force termination
                     self.log_message("⚠ Forcing process termination...")
                     logger.warning("Process did not terminate, forcing kill")
-                    self.current_process.kill()
-                    self.current_process.wait()
+                    process.kill()
+                    process.wait(timeout=5)
                     logger.info("Download process killed")
 
                 # Clean up partial files
@@ -595,8 +618,8 @@ class YouTubeMp3Downloader(Gtk.Window):
         self.folder_entry.set_text(self.download_path)
 
         # Reset download status
-        self.download_stopped = False
-        self.download_cancel_requested = False
+        self.download_stopped.clear()
+        self.download_cancel_requested.clear()
         self.current_downloading_file = None
         self.current_download_original = None
 
@@ -625,12 +648,12 @@ class YouTubeMp3Downloader(Gtk.Window):
 
         # Run download in a separate thread
         try:
-            thread = threading.Thread(
+            self._download_thread = threading.Thread(
                 target=download.download_thread,
                 args=(self, url, url_type, self.download_path, use_auth, auth_browser)
             )
-            thread.daemon = True
-            thread.start()
+            self._download_thread.daemon = True
+            self._download_thread.start()
             logger.debug("Download thread started")
         except Exception as e:
             logger.error(f"Failed to start download thread: {e}")

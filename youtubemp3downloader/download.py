@@ -73,7 +73,7 @@ def download_thread(window, url, url_type, download_path, use_auth, auth_browser
                 GLib.idle_add(window.log_message, "⚠ Could not get playlist info: {}".format(str(e)))
                 GLib.idle_add(window.log_message, "")
 
-        if window.download_cancel_requested:
+        if window.download_cancel_requested.is_set():
             GLib.idle_add(window.log_message, "")
             GLib.idle_add(window.log_message, "✓ Download cancelled before starting")
             logger.info("Download cancelled by user before starting")
@@ -84,12 +84,14 @@ def download_thread(window, url, url_type, download_path, use_auth, auth_browser
             "yt-dlp",
             "-x",
             "--audio-format", "mp3",
-            "--audio-quality", "320k",
             "--postprocessor-args", "ffmpeg:-b:a 320k",
             "--embed-thumbnail",
             "--add-metadata",
             "--yes-playlist",
             "--ignore-errors",
+            "--retries", "3",
+            "--fragment-retries", "3",
+            "--socket-timeout", "30",
             "-o", output_template,
         ]
 
@@ -119,7 +121,8 @@ def download_thread(window, url, url_type, download_path, use_auth, auth_browser
             logger.error(f"Failed to start yt-dlp process: {e}")
             raise DownloadError(f"Could not start download process: {e}") from e
 
-        window.current_process = process
+        with window.download_lock:
+            window.current_process = process
         logger.debug(f"Download process started with PID: {process.pid}")
 
         current_video_title = ""
@@ -236,10 +239,15 @@ def download_thread(window, url, url_type, download_path, use_auth, auth_browser
                 except (ValueError, IndexError) as e:
                     logger.debug(f"Could not parse progress percentage: {e}")
 
-        process.wait()
+        try:
+            process.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            logger.warning("Process did not exit after stdout closed, killing")
+            process.kill()
+            process.wait(timeout=10)
         logger.info(f"Download process completed with return code: {process.returncode}")
 
-        if window.download_stopped:
+        if window.download_stopped.is_set():
             GLib.idle_add(window.log_message, "")
             GLib.idle_add(window.log_message, "=" * 60)
             if successful_downloads > 0:
@@ -320,7 +328,8 @@ def download_thread(window, url, url_type, download_path, use_auth, auth_browser
         GLib.idle_add(window.show_error_dialog, "Unexpected error:\n{}".format(str(e)))
         GLib.idle_add(window.progress_bar.set_text, "Error")
     finally:
-        window.current_process = None
+        with window.download_lock:
+            window.current_process = None
         window.current_downloading_file = None
         window.current_download_original = None
         logger.debug("Download thread cleanup completed")
